@@ -14,21 +14,21 @@ import os
 
 def get_audio_and_rate(filepath: str) -> Tuple[int, np.ndarray]:
     rate, audio = wavfile.read(filepath)
-    return rate, np.mean(audio, axis=1)
+    mono_audio = np.mean(audio, axis=1)
+    return rate, mono_audio
 
 
 def get_audio_slices(audio: np.ndarray, window_size: int, step: int) -> np.ndarray:
     slices = util.view_as_windows(audio, window_shape=(window_size,), step=step)
-    hanning_window = np.hanning(window_size + 1)
-    win = hanning_window[:-1]
-    slices = (slices * win).T
-    return slices
+    hanning_window = np.hanning(window_size + 1)[:-1]
+    return (slices * hanning_window).T
 
 
 def get_normalized_spectrum(spectrum: np.ndarray, window_size: int) -> np.ndarray:
     cut_freq = spectrum[:window_size // 2 + 1:-1]
     abs_spectrum = np.abs(cut_freq)
-    return 20 * np.log10(abs_spectrum / np.max(abs_spectrum))
+    decibel_spectrum = 20 * np.log10(abs_spectrum / np.max(abs_spectrum))
+    return decibel_spectrum
 
 
 def get_fftw_spectrum(audio: np.ndarray, window_size: int, step: int) -> np.ndarray:
@@ -38,17 +38,18 @@ def get_fftw_spectrum(audio: np.ndarray, window_size: int, step: int) -> np.ndar
     slices_fftw[:] = slices
     fft = pyfftw.interfaces.numpy_fft.fft(slices_fftw, axis=0)
     normalized_spectrum = get_normalized_spectrum(fft, window_size)
-    print(f'get_fftw_spectrum - calculation time: {time.time()-fft_start:.5f} s')
+    print(f'get_fftw_spectrum - calculation time: {time.time() - fft_start:.5f} s')
     return normalized_spectrum
 
 
 def get_cuda_spectrum(audio: np.ndarray, window_size: int, step: int) -> np.ndarray:
     fft_start = time.time()
     slices = get_audio_slices(audio, window_size, step)
-    cuda_spectrum = cupy.asnumpy(cupy.fft.fft(cupy.array(slices, dtype='float64'), axis=0))
+    device_array = cupy.array(slices, dtype='float64')
+    cuda_spectrum = cupy.asnumpy(cupy.fft.fft(device_array, axis=0))
     cupy.cuda.Device().synchronize()
     normalized_spectrum = get_normalized_spectrum(cuda_spectrum, window_size)
-    print(f'get_cuda_spectrum - calculation time: {time.time()-fft_start:.5f} s')
+    print(f'get_cuda_spectrum - calculation time: {time.time() - fft_start:.5f} s')
     return normalized_spectrum
 
 
@@ -73,7 +74,7 @@ def etalon_plot(audio: np.ndarray, rate: int, title: str, window_size: int = 512
     freqs, times, Sx = signal.spectrogram(audio, fs=rate, window='hanning',
                                           nperseg=window_size, noverlap=window_size - step,
                                           detrend=False, scaling='spectrum', mode='magnitude')
-    print(f'signal.spectrogram - calculation time: {time.time()-start:.5f} s')
+    print(f'signal.spectrogram - calculation time: {time.time() - start:.5f} s')
     f, ax = plt.subplots(figsize=(10, 5))
     ax.pcolormesh(times, freqs / 1000, 10 * np.log10(Sx))
     ax.set_ylabel('Frequency, kHz')
@@ -99,15 +100,14 @@ def calculate_plots(filepath: str, window_size: int = 512, step: int = 100):
 def get_wavs(folder: str = './data'):
     wavs = []
     for root, dirs, files in os.walk(folder):
-        for file in files:
-            if file.endswith(".wav"):
-                wavs.append(file)
+        wavs += [file for file in files if file.endswith(".wav")]
     return wavs
 
 
 if __name__ == '__main__':
     plt.rcParams['font.family'] = 'Times New Roman'
     wavs_folder = './data'
-    for wav in get_wavs(wavs_folder):
+    wavs = get_wavs(wavs_folder)
+    for wav in wavs:
         calculate_plots(f'{wavs_folder}/{wav}', 512)
     plt.rcParams = plt.rcParamsDefault
