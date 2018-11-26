@@ -1,11 +1,11 @@
-__global__ void matmul(int n, const float *A, const float *B, float *C) {
-  int row = blockIdx.y * blockDim.y + threadIdx.y;
-  int col = blockIdx.x * blockDim.x + threadIdx.x;
+__global__ void matmul(const int n, const int m, const int p, const float *A, const float *B, float *C) {
+  const int x = blockIdx.x * blockDim.x + threadIdx.x,
+    y = blockIdx.y * blockDim.y + threadIdx.y;
 
-  if (row < n && col < n) {
-    C[row * n + col] = 0.0;
-    for (int i = 0; i < n; ++i) {
-      C[row * n + col] += A[row * n + i] * B[n * i + col];
+  if (x < n && y < p) {
+    C[x * p + y] = 0.0;
+    for (int i = 0; i < m; ++i) {
+      C[x * p + y] += A[x * m + i] * B[p * i + y];
     }
   }
 }
