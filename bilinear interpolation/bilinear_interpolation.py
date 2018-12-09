@@ -1,5 +1,7 @@
 import os
 import time
+from typing import List
+
 import matplotlib.pyplot as plt
 import numpy as np
 import imageio
@@ -132,7 +134,7 @@ def calculate_image(file: str, scale: int = 2):
     print(f'Image {file} - calculation finished!')
 
 
-def get_images_files(folder: str = './data') -> list:
+def get_images_files(folder: str = './data') -> List[str]:
     # images_files = [
     #     f'{folder}/ezh.png'
     # ]
